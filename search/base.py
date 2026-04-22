@@ -4,12 +4,13 @@ import torch
 
 
 class SearchResult:
-    def __init__(self, book: str, chapter: int, verse: int, text: str, score: float):
+    def __init__(self, book: str, chapter: int, verse: int, text: str, score: float, idx: int = 0):
         self.book = book
         self.chapter = chapter
         self.verse = verse
         self.text = text
         self.score = score
+        self.idx = idx  # position in the full corpus, used for context navigation
 
     def __repr__(self):
         return f"{self.book} {self.chapter}:{self.verse} (score={self.score:.4f})\n  {self.text}"
@@ -38,6 +39,7 @@ class Searcher(ABC):
                 verse=self._verses[idx]["verse"],
                 text=self._verses[idx]["text"],
                 score=float(scores[idx]),
+                idx=int(idx),
             )
             for idx in indices
         ]
