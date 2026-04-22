@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
@@ -28,9 +29,7 @@ class EmbeddingSearcher(Searcher):
     """
 
     def __init__(self, device: str | None = None):
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self._device = torch.device(device)
+        super().__init__(device)
         self._tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
         self._model = AutoModel.from_pretrained(_MODEL_NAME).to(self._device).eval()
 
@@ -72,15 +71,4 @@ class EmbeddingSearcher(Searcher):
 
         k = min(top_k, len(self._verses))
         top_indices = torch.topk(scores, k).indices.numpy()
-
-        results = []
-        for idx in top_indices:
-            v = self._verses[idx]
-            results.append(SearchResult(
-                book=v["book"],
-                chapter=v["chapter"],
-                verse=v["verse"],
-                text=v["text"],
-                score=float(scores[idx]),
-            ))
-        return results
+        return self._make_results(top_indices, scores)

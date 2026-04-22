@@ -19,6 +19,7 @@ def load_verses(path: Path = _VERSES_PATH) -> list[dict]:
         if not m:
             continue
         book, chapter, verse = m.group(1), int(m.group(2)), int(m.group(3))
+        text = text.lstrip("# ")
         verses.append({"ref": ref, "book": book, "chapter": chapter, "verse": verse, "text": text})
 
     return verses

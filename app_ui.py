@@ -22,6 +22,9 @@ st.markdown(
     /* Column gap */
     div[data-testid="stHorizontalBlock"] { gap: 0.75rem !important; }
 
+    /* Pointer cursor on selectbox */
+    div[data-testid="stSelectbox"] > div[data-baseweb="select"] * { cursor: pointer !important; }
+
 </style>
     """,
     unsafe_allow_html=True,
@@ -81,7 +84,7 @@ with st.container():
 
     METHODS = ["TF-IDF", "BM25", "BGE (bi-encoder)"]
 
-    col_query, col_method = st.columns([4, 1])
+    col_query, col_method = st.columns([4, 1.35])
     with col_query:
         query = st.text_input("Search query", placeholder="e.g. love your neighbor", label_visibility="collapsed")
     with col_method:
@@ -116,10 +119,10 @@ st.markdown(
         text-align: center;
         padding: 0.75rem 0;
         font-size: 0.85rem;
-        color: #888;
+        color: #555;
         background: #ffffff;
     }
-    .sticky-footer a { color: #888; }
+    .sticky-footer a { color: #555; }
     section.main > div { padding-bottom: 3rem; }
     </style>
     <div class="sticky-footer">
