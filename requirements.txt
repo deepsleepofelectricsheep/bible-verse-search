@@ -1,0 +1,8 @@
+flask
+numpy
+torch
+scikit-learn
+rank-bm25
+streamlit
+transformers
+accelerate

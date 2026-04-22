@@ -1,0 +1,1 @@
+Source of json data: https://github.com/farskipper/kjv/tree/master?tab=Unlicense-1-ov-file
