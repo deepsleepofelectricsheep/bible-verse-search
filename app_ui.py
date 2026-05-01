@@ -1,8 +1,12 @@
 import streamlit as st
+import streamlit.components.v1 as components
+from html import escape
 
 st.set_page_config(page_title="Bible Verse Search", layout="centered")
 
-# ── Styles ────────────────────────────────────────────────────────────────────
+SNIPPET_LEN = 80
+
+# ── Styles ─────────────────────────────────────────────────────────────────────
 
 st.markdown(
     """
@@ -15,57 +19,43 @@ st.markdown(
         --sp-xl: 1.5rem;
     }
 
-    .stMainBlockContainer { padding-top: var(--sp-lg) !important; }
-
-    div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"]:first-child {
-        position: sticky;
-        top: 0;
-        z-index: 999;
-        background-color: var(--background-color);
-        padding-bottom: var(--sp-sm);
+    .stMainBlockContainer {
+        padding-top: var(--sp-lg) !important;
+        max-width: 900px !important;
     }
 
     div[data-testid="stHorizontalBlock"] { gap: var(--sp-md) !important; }
 
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] * { cursor: pointer !important; }
 
-    .method-desc {
-        font-size: 0.75rem;
-        color: #888;
-        opacity: 0;
-        transition: opacity 0.15s;
-        padding-top: var(--sp-xs);
-    }
-    div[data-testid="stColumn"]:last-child:hover .method-desc { opacity: 1; }
-
-    .result-ref { margin-bottom: 0 !important; }
-    .result-ref p { margin-bottom: 0 !important; }
-    .result-text p { margin-bottom: 0 !important; }
-
-    /* ── Load more ──────────────────────────────────────────────────────────── */
-    [class*="st-key-load-more"] div[data-testid="stButton"] > button,
-    [class*="st-key-load-more"] [data-testid*="baseButton"] {
+    /* "Open →" card buttons */
+    [class*="st-key-card_open"] button {
         background: none !important;
         border: none !important;
         box-shadow: none !important;
-        outline: none !important;
-        color: #888 !important;
+        color: #555 !important;
+        padding: 0 !important;
         font-size: 0.85rem !important;
-        font-weight: normal !important;
-        padding: 2px 0 !important;
         min-height: unset !important;
-        height: auto !important;
-        width: auto !important;
-        border-radius: 0 !important;
-        cursor: pointer !important;
-        letter-spacing: 0.01em;
     }
-    [class*="st-key-load-more"] div[data-testid="stButton"] > button:hover,
-    [class*="st-key-load-more"] [data-testid*="baseButton"]:hover {
+    [class*="st-key-card_open"] button:hover {
+        color: #111 !important;
+        text-decoration: underline !important;
+        text-underline-offset: 3px;
+    }
+
+    /* "← Back" button */
+    [class*="st-key-back_btn"] button {
         background: none !important;
         border: none !important;
         box-shadow: none !important;
-        color: #333 !important;
+        color: #555 !important;
+        padding: 0 !important;
+        font-size: 0.9rem !important;
+        min-height: unset !important;
+    }
+    [class*="st-key-back_btn"] button:hover {
+        color: #111 !important;
         text-decoration: underline !important;
         text-underline-offset: 3px;
     }
@@ -74,7 +64,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Index ─────────────────────────────────────────────────────────────────────
+# ── Index ──────────────────────────────────────────────────────────────────────
 
 @st.cache_resource(show_spinner=False)
 def load_verses_cached():
@@ -111,85 +101,161 @@ LOADERS = {
     "BGE (bi-encoder)": load_embedding,
 }
 
+# ── Chapter HTML builder ───────────────────────────────────────────────────────
 
-# ── Sticky header ─────────────────────────────────────────────────────────────
+def _build_chapter_html(result) -> str:
+    first_match = min(result.matched_verses)
+
+    rows = []
+    for v in result.verses:
+        vnum = v["verse"]
+        is_match = vnum in result.matched_verses
+        text = escape(v["text"])
+
+        if is_match:
+            row_style = (
+                "display:flex;align-items:baseline;padding:6px 12px;"
+                "border-left:3px solid #888;background:rgba(0,0,0,0.04);"
+                "margin:2px 0;border-radius:0 3px 3px 0;"
+            )
+        else:
+            row_style = "display:flex;align-items:baseline;padding:6px 12px;margin:2px 0;"
+
+        rows.append(
+            f'<div id="v{vnum}" style="{row_style}">'
+            f'<span style="min-width:2em;font-size:0.72em;color:#aaa;margin-right:10px;flex-shrink:0;">{vnum}</span>'
+            f'<span>{text}</span>'
+            f'</div>'
+        )
+
+    verses_html = "\n".join(rows)
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: #fff; font-family: 'Source Sans Pro', 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.65; color: #333; }}
+  #container {{ height: 480px; overflow-y: auto; padding: 4px 0; }}
+</style>
+</head>
+<body>
+<div id="container">
+{verses_html}
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {{
+    var container = document.getElementById('container');
+    var el = document.getElementById('v{first_match}');
+    if (container && el) {{
+      container.scrollTop = el.offsetTop - container.clientHeight / 2 + el.offsetHeight / 2;
+    }}
+  }});
+</script>
+</body>
+</html>"""
+
+# ── Session state defaults ─────────────────────────────────────────────────────
+
+for _key, _default in [("view", "results"), ("selected_idx", 0), ("results", [])]:
+    if _key not in st.session_state:
+        st.session_state[_key] = _default
+
+# ── Sticky header ──────────────────────────────────────────────────────────────
 
 with st.container():
     st.markdown(
         """
         <div style="text-align:center; padding: 0 0 0.75rem 0;">
             <h1 style="margin-bottom:0.25rem; margin-top:0;">Search engine for Bible verses</h1>
-            <p style="margin:0; font-size:1.1rem; color:#888;">
-                Find the most relevant among 31,102 verses from the King James Bible
-            </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     METHODS = ["TF-IDF", "BM25", "BGE (bi-encoder)"]
-    METHOD_DESCRIPTIONS = {
-        "TF-IDF": "Keyword matching weighted by term frequency and rarity.",
-        "BM25": "Keyword matching with document-length normalization.",
-        "BGE (bi-encoder)": "Semantic search using a small transformer model.",
-    }
 
     col_query, col_method = st.columns([4, 1.35])
     with col_query:
         query = st.text_input("Search query", placeholder="e.g. love your neighbor", label_visibility="collapsed")
     with col_method:
         method = st.selectbox("Method", METHODS, index=2, label_visibility="collapsed")
-        st.markdown(
-            f'<div class="method-desc">{METHOD_DESCRIPTIONS[method]}</div>',
-            unsafe_allow_html=True,
-        )
 
-# ── Session state ─────────────────────────────────────────────────────────────
-
-if "displayed_count" not in st.session_state:
-    st.session_state.displayed_count = 10
-
-# ── Results ───────────────────────────────────────────────────────────────────
+# ── Search & result caching ────────────────────────────────────────────────────
 
 if query.strip():
     if (st.session_state.get("_last_query") != query.strip() or
             st.session_state.get("_last_method") != method):
-        st.session_state.displayed_count = 10
+        st.session_state.view = "results"
+        st.session_state.selected_idx = 0
         st.session_state["_last_query"] = query.strip()
         st.session_state["_last_method"] = method
 
-    with st.spinner("Loading…"):
-        searcher = LOADERS[method]()
-        results = searcher.search(query.strip(), top_k=50)
+        with st.spinner("Loading…"):
+            searcher = LOADERS[method]()
+            all_results = searcher.search_chapters(query.strip(), top_k=5)
 
-    top_score = results[0].score
-    filtered = [r for r in results if r.score >= 0.5 * top_score]
+        top_score = all_results[0].score if all_results else 0
+        st.session_state.results = [r for r in all_results if r.score >= 0.5 * top_score]
 
-    if not filtered:
-        st.warning("No strong matches found.")
+    results = st.session_state.results
+
+    if not results:
+        st.warning("No results found.")
+
+    elif st.session_state.view == "chapter":
+        # ── Chapter reader ─────────────────────────────────────────────────────
+        chapter = results[st.session_state.selected_idx]
+
+        if st.button("← Back to results", key="back_btn"):
+            st.session_state.view = "results"
+            st.rerun()
+
+        st.markdown(
+            f"<h2 style='margin-top:0.5rem;margin-bottom:0.25rem'>{escape(chapter.book)} {chapter.chapter}</h2>",
+            unsafe_allow_html=True,
+        )
+        components.html(_build_chapter_html(chapter), height=500, scrolling=False)
+
     else:
-        n = len(filtered)
-        count_label = f"**{n} result{'s' if n != 1 else ''}**"
-        st.markdown(f"{count_label} for *{query.strip()}* using **{method}**")
+        # ── Results list ───────────────────────────────────────────────────────
+        n = len(results)
+        st.markdown(
+            f"<div style='color:#888;font-size:0.9em;margin-bottom:0.75rem'>"
+            f"{n} result{'s' if n != 1 else ''}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
-        visible = filtered[:st.session_state.displayed_count]
-        for i, r in enumerate(visible, start=1):
-            ref = f"{r.book} {r.chapter}:{r.verse}"
-            st.markdown(f"**{i}. {ref}**")
-            st.markdown(r.text)
-            st.markdown('<hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #e0e0e0;"/>', unsafe_allow_html=True)
+        for i, chapter in enumerate(results):
+            verse_lookup = {v["verse"]: v["text"] for v in chapter.verses}
+            verse_nums = ", ".join(str(v) for v in sorted(chapter.matched_verses))
 
-        remaining = n - len(visible)
-        if remaining > 0:
-            to_load = min(5, remaining)
-            cols = st.columns([2, 1, 2])
-            with cols[1]:
-                with st.container(key="load-more"):
-                    if st.button(f"Load {to_load} more", key="load_more_btn"):
-                        st.session_state.displayed_count += 5
+            with st.container(border=True):
+                col_info, col_btn = st.columns([6, 1])
+                with col_info:
+                    st.markdown(
+                        f"**{escape(chapter.book)} {chapter.chapter}**"
+                        f"<span style='color:#888;font-size:0.9em'> · verses {verse_nums}</span>",
+                        unsafe_allow_html=True,
+                    )
+                    for vnum in sorted(chapter.matched_verses):
+                        text = verse_lookup.get(vnum, "")
+                        snippet = text[:SNIPPET_LEN] + "…" if len(text) > SNIPPET_LEN else text
+                        st.markdown(
+                            f"<div style='display:flex;gap:10px;margin-top:4px'>"
+                            f"<span style='min-width:1.5em;color:#aaa;font-size:0.85em;flex-shrink:0'>{vnum}</span>"
+                            f"<span style='font-size:0.9em;color:#555'>{escape(snippet)}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                with col_btn:
+                    if st.button("Open →", key=f"card_open_{i}"):
+                        st.session_state.selected_idx = i
+                        st.session_state.view = "chapter"
                         st.rerun()
 
-# ── Footer ────────────────────────────────────────────────────────────────────
+# ── Footer ─────────────────────────────────────────────────────────────────────
 
 st.markdown(
     """
